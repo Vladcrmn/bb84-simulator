@@ -29,10 +29,10 @@ The simulation uses the following correspondence:
 
 | Basis | Bit | Quantum state |
 | ----- | --- | ------------- |
-| Z     | 0   | `|H⟩`         |
-| Z     | 1   | `|V⟩`         |
-| X     | 0   | `|+⟩`         |
-| X     | 1   | `|-⟩`         |
+| Z     | 0   | \|H⟩ |
+| Z     | 1   | \|V⟩ |
+| X     | 0   | \|+⟩ |
+| X     | 1   | \|-⟩ |
 
 with
 
