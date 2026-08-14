@@ -4,9 +4,9 @@ A simple educational simulation of the **BB84 quantum key distribution protocol*
 
 The goal of this project is to understand the fundamental mechanisms behind quantum key distribution by implementing the protocol step by step.
 
-## Current Version — V1
+## Current Version — V3
 
-The current version simulates BB84 communication between Alice and Bob without an eavesdropper.
+The current version implements the BB84 protocol between Alice and Bob, an optional **intercept-resend attack by Eve**, and **Quantum Bit Error Rate (QBER) estimation**.
 
 The simulation includes:
 
@@ -16,15 +16,12 @@ The simulation includes:
 * Random basis selection by Bob
 * Quantum measurement simulation
 * Basis reconciliation (sifting)
-* Shared key generation
-
-When Alice and Bob use the same basis, Bob obtains the corresponding bit deterministically.
-
-When Bob measures using a different basis, the result is randomly generated with probability:
-
-$$
-P(0) = P(1) = \frac{1}{2}
-$$
+* Optional Eve intercept-resend attack
+* Public sampling of the sifted key
+* QBER estimation
+* Removal of publicly revealed sample bits
+* QBER threshold verification
+* Protocol continuation or abort decision
 
 ## BB84 States
 
@@ -32,10 +29,10 @@ The simulation uses the following correspondence:
 
 | Basis | Bit | Quantum state |
 | ----- | --- | ------------- |
-| Z | 0 | \|H⟩ |
-| Z | 1 | \|V⟩ |
-| X | 0 | \|+⟩ |
-| X | 1 | \|-⟩ |
+| Z     | 0   | `|H⟩`         |
+| Z     | 1   | `|V⟩`         |
+| X     | 0   | `|+⟩`         |
+| X     | 1   | `|-⟩`         |
 
 with
 
@@ -43,9 +40,104 @@ $$
 |+\rangle = \frac{|H\rangle + |V\rangle}{\sqrt{2}}
 $$
 
+and
+
 $$
 |-\rangle = \frac{|H\rangle - |V\rangle}{\sqrt{2}}
 $$
+
+When a state is measured in the same basis in which it was prepared, the corresponding bit is obtained deterministically.
+
+When it is measured in the other basis, the result is simulated as random:
+
+$$
+P(0) = P(1) = \frac{1}{2}
+$$
+
+## V2 — Eavesdropping
+
+Eve can perform an **intercept-resend attack**.
+
+For every transmitted state, Eve:
+
+1. intercepts Alice's quantum state,
+2. randomly chooses a measurement basis,
+3. measures the state,
+4. prepares a new state according to her measurement,
+5. sends the newly prepared state to Bob.
+
+If Eve chooses the wrong basis, her measurement can disturb the transmitted quantum state.
+
+This disturbance can later appear as errors in Alice and Bob's sifted keys.
+
+## V3 — QBER
+
+Alice and Bob estimate the **Quantum Bit Error Rate (QBER)** by publicly revealing a random sample of their sifted keys.
+
+The QBER is defined as:
+
+$$
+QBER =
+\frac{\text{number of different sampled bits}}
+{\text{number of sampled bits}}
+$$
+
+The revealed bits are then discarded and are not used as part of the remaining secret key.
+
+In this educational simulator, a threshold of approximately **11%** is used as a reference value for ideal BB84 under asymptotic one-way post-processing assumptions.
+
+If the estimated QBER exceeds the threshold, the protocol is aborted.
+
+Otherwise, Alice and Bob may continue to the next post-processing stages.
+
+A full intercept-resend attack is expected to introduce a significant error rate, making the attack detectable statistically.
+
+A high QBER indicates that the quantum channel has been disturbed. This may be caused by eavesdropping, channel noise, or implementation imperfections; therefore QBER does not by itself prove that Eve is present.
+
+## Protocol Flow
+
+```text
+Alice
+  │
+  ├── Generate random bits
+  ├── Choose random bases
+  └── Prepare quantum states
+          │
+          ▼
+      Eve enabled?
+       /       \
+     no         yes
+     │           │
+     │       Intercept
+     │       Measure
+     │       Resend
+     │           │
+     └──────┬────┘
+            ▼
+           Bob
+            │
+      Choose bases
+      Measure states
+            │
+            ▼
+          Sifting
+            │
+            ▼
+    Public sample selection
+            │
+            ▼
+      QBER estimation
+            │
+            ▼
+     Discard sample bits
+            │
+            ▼
+     QBER acceptable?
+       /          \
+     yes           no
+      │             │
+   Continue        Abort
+```
 
 ## Project Structure
 
@@ -63,12 +155,11 @@ bb84-simulator/
 └── tests/
     ├── __init__.py
     └── test_bb84.py
-
 ```
 
 `bb84.py` contains the implementation of the protocol operations.
 
-`main.py` executes a complete BB84 simulation.
+`main.py` executes complete BB84 simulations.
 
 ## Run
 
@@ -78,50 +169,55 @@ Clone the repository and run:
 python src/main.py
 ```
 
-## Example
-
-```text
-Alice bits   : [1, 0, 1, 0, 1]
-Alice bases  : [Z, X, Z, X, Z]
-Alice states : [V, +, V, +, V]
-
-Bob bases    : [Z, Z, Z, X, X]
-Bob results  : [1, 1, 1, 0, 0]
-
-Alice key    : [1, 1, 0]
-Bob key      : [1, 1, 0]
-```
 ## Tests
 
 Run the test suite with:
 
 ```bash
 python -m unittest discover -s tests -v
-
 ```
 
 ## Roadmap
 
-### V2 — Eavesdropping
+### V1 — Core BB84 Protocol ✅
 
-Add Eve using an **intercept-resend attack**.
+* Alice bit generation
+* Random basis selection
+* Quantum state preparation
+* Bob measurement
+* Basis reconciliation
+* Sifted key generation
 
-Eve will:
+### V2 — Eavesdropping ✅
 
-1. intercept Alice's quantum states,
-2. randomly choose measurement bases,
-3. measure the states,
-4. prepare new states according to her measurements,
-5. send them to Bob.
+* Eve intercept-resend attack
+* Random Eve measurement bases
+* State re-preparation and retransmission
 
-### V3 — QBER
+### V3 — QBER ✅
 
-Calculate the **Quantum Bit Error Rate (QBER)** and demonstrate how Alice and Bob can detect the presence of an eavesdropper.
+* Public sampling of the sifted key
+* QBER estimation
+* Removal of revealed bits
+* QBER threshold verification
+* Protocol continuation or abort
+
+### V4 — Error Correction
+
+Reconcile discrepancies that may remain between Alice and Bob's keys while minimizing the information revealed over the public classical channel.
 
 ### Later
 
-Possible extensions include error correction, privacy amplification and more detailed visualization of the BB84 protocol.
+Possible extensions include:
+
+* Privacy amplification
+* More realistic channel noise
+* Partial interception by Eve
+* Statistical experiments
+* Interactive visualization of the BB84 protocol
 
 ## Purpose
 
-This project is intended for educational purposes and focuses on understanding the principles of quantum key distribution rather than simulating a complete physical quantum communication system.
+This project is intended for educational purposes.
+
+It focuses on understanding the principles of quantum key distribution and BB84 rather than reproducing a complete physical QKD implementation.

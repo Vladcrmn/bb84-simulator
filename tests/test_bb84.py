@@ -5,7 +5,10 @@ from src.bb84 import (
     generer_bases,
     preparer_etats,
     mesurer,
-    sift_key
+    sift_key,
+    calculer_qber,
+    verifier_qber,
+    estimer_qber
 )
 
 
@@ -102,6 +105,32 @@ class TestBB84(unittest.TestCase):
 
         self.assertEqual(cle_alice, cle_bob)
 
+
+    def test_calculer_qber(self):
+        cle_alice = [0, 1, 1, 0]
+        cle_bob = [0, 0, 1, 1]
+
+        qber = calculer_qber(cle_alice, cle_bob)
+
+        self.assertEqual(qber, 0.5)
+
+    def test_verifier_qber(self):
+        self.assertTrue(verifier_qber(0.05))
+        self.assertTrue(verifier_qber(0.11))
+        self.assertFalse(verifier_qber(0.20))
+
+    def test_estimer_qber_identical_keys(self):
+        cle_alice = [0, 1, 0, 1, 1, 0, 1, 0, 1, 0]
+        cle_bob = cle_alice.copy()
+
+        qber, alice_restante, bob_restante = estimer_qber(
+            cle_alice,
+            cle_bob,
+            proportion=0.2)
+
+        self.assertEqual(qber, 0)
+        self.assertEqual(len(alice_restante), 8)
+        self.assertEqual(alice_restante, bob_restante)
 
 
 if __name__ == "__main__":
