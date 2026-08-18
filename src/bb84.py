@@ -1,4 +1,6 @@
 import random
+import hashlib
+
 
 def generer_bits(n):
     bits = []
@@ -187,14 +189,148 @@ def simuler_bb84(n, eve_active=False, verbose=True):
     print(f"Estimated QBER : {qber * 100:.2f}%")
     
     if verifier_qber(qber):
-            print("Continue protocol : QBER acceptable")
+        print("Continue protocol : QBER acceptable")
+
+        cle_bob_corrigee = corriger_erreurs(cle_alice,cle_bob,taille_bloc=8)
+
+        if cle_alice == cle_bob_corrigee:
+            print("Error correction successful")
+
+            cle_finale_alice = amplification_confidentialite(cle_alice)
+            cle_finale_bob = amplification_confidentialite(cle_bob_corrigee)
+
+            print("Final key length :", len(cle_finale_alice))
+            print("Final keys identical :", cle_finale_alice==cle_finale_bob)
+
+        else:
+            print("Abort protocol : error correction failed")
+
     else:
         print("Abort protocol : QBER too high")
 
 
-    
-    
+#------------------------------#
+#-------ERROR CORRECTION-------#
+#------------------------------#
 
 
 
-    
+def calculer_parite(bloc):
+    return sum(bloc)%2
+
+
+def decouper_blocs(cle, taille_bloc):
+    blocs = []
+
+    for i in range(0, len(cle), taille_bloc):
+        bloc = cle[i:i+taille_bloc]
+        blocs.append(bloc)
+
+    return blocs    
+
+
+def trouver_blocs_differents(cle_alice, cle_bob, taille_bloc):
+    blocs_alice = decouper_blocs(cle_alice, taille_bloc)
+    blocs_bob = decouper_blocs(cle_bob, taille_bloc)
+
+    indices_differents = []
+
+    for i in range(len(blocs_alice)) : 
+        if calculer_parite(blocs_alice[i]) != calculer_parite(blocs_bob[i]):
+            indices_differents.append(i)
+
+    return indices_differents
+
+# Dichotomic research 
+def localiser_erreur(bloc_alice, bloc_bob):
+    position = 0
+
+    while len(bloc_alice) > 1:
+        milieu = len(bloc_alice) // 2
+
+        gauche_alice = bloc_alice[:milieu]
+        gauche_bob = bloc_bob[:milieu]
+
+        if calculer_parite(gauche_alice) != calculer_parite(gauche_bob):
+            bloc_alice = gauche_alice
+            bloc_bob = gauche_bob
+            
+        else:
+           bloc_alice = bloc_alice[milieu:]
+           bloc_bob = bloc_bob[milieu:]
+           position += milieu
+
+    return position
+
+
+# Correct error
+def corriger_erreurs(cle_alice, cle_bob, taille_bloc):
+    # Pour ne pas modifier directement la clé originale
+    cle_bob_corrigee = cle_bob.copy()
+
+    blocs_alice = decouper_blocs(cle_alice, taille_bloc)
+    blocs_bob = decouper_blocs(cle_bob_corrigee, taille_bloc)
+
+    indices_differents = trouver_blocs_differents(cle_alice,cle_bob_corrigee,taille_bloc)
+
+    for indice_bloc in indices_differents:
+        bloc_alice = blocs_alice[indice_bloc]
+        bloc_bob = blocs_bob[indice_bloc]
+
+        position_locale = localiser_erreur(bloc_alice,bloc_bob)
+
+        position_globale = position_locale + taille_bloc * indice_bloc
+
+        cle_bob_corrigee[position_globale] ^= 1
+
+    return cle_bob_corrigee
+
+
+#-------------------#
+#---AMPLIFICATION---#
+#-------------------#
+
+
+# ex : [1,1,0,0] -> "1100"
+def cle_vers_texte(cle):
+    tot = ""
+    for bit in cle : 
+        tot += str(bit)
+    return tot
+
+
+def hacher_cle(cle):
+    texte = cle_vers_texte(cle)
+
+    # text -> octet -> SHA-256 -> result hexadecimal
+    empreinte = hashlib.sha256(texte.encode()).hexdigest()
+
+    return empreinte
+
+
+def empreinte_vers_bits(empreinte):
+    bits = []
+
+    for caractere in empreinte:
+
+        # "a" -> 10 -> "1010" (base 2) -> [1,0,1,0]
+        groupe = format(int(caractere,16), "04b")
+
+        for bit in groupe:
+            bits.append(int(bit))
+
+    return bits
+
+# Amplification reduces the key
+def amplification_confidentialite(cle):
+    empreinte = hacher_cle(cle)
+    bits_empreinte = empreinte_vers_bits(empreinte)
+
+    longueur_finale = min(256, len(cle) // 2)
+
+    cle_finale = bits_empreinte[:longueur_finale]
+
+    return cle_finale
+
+
+
